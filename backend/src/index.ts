@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 import authRoutes from './routes/auth';
 import deviceRoutes from './routes/devices';
@@ -13,6 +15,41 @@ import reportRoutes from './routes/reports';
 import { runRiskEngineForAll } from './utils/riskEngine';
 
 dotenv.config();
+
+// Auto-seed on startup (migrate handled at build time via prisma generate)
+async function initDatabase() {
+  const prisma = new PrismaClient();
+  try {
+    const count = await prisma.user.count();
+    if (count === 0) {
+      console.log('Seeding database...');
+      const adminHash = await bcrypt.hash('admin123', 10);
+      const auditHash = await bcrypt.hash('audit123', 10);
+      const tdrHash = await bcrypt.hash('tdr123', 10);
+      const tlHash = await bcrypt.hash('tl123', 10);
+
+      await prisma.user.createMany({
+        data: [
+          { staffId: 'ADMIN001', name: 'System Admin', role: 'ADMIN', passwordHash: adminHash, department: 'IT', isActive: true },
+          { staffId: 'AUD001', name: 'Trade Auditor 1', role: 'TRADE_AUDITOR', passwordHash: auditHash, department: 'Audit', isActive: true },
+          { staffId: 'MKT001', name: 'Market Manager', role: 'MARKET_MANAGEMENT', passwordHash: adminHash, department: 'Marketing', isActive: true },
+          { staffId: 'TDR001', name: 'TDR Agent 1', role: 'TDR', passwordHash: tdrHash, department: 'Sales', isActive: true },
+          { staffId: 'TDR002', name: 'TDR Agent 2', role: 'TDR', passwordHash: tdrHash, department: 'Sales', isActive: true },
+          { staffId: 'TL001', name: 'Team Lead 1', role: 'TEAM_LEAD', passwordHash: tlHash, department: 'Sales', isActive: true },
+          { staffId: 'AGT001', name: 'Agent 1', role: 'AGENT', passwordHash: auditHash, department: 'Sales', isActive: true },
+        ],
+        skipDuplicates: true,
+      });
+      console.log('Seed complete — 7 users created.');
+    } else {
+      console.log(`Database already has ${count} users, skipping seed.`);
+    }
+  } catch (seedErr) {
+    console.error('Seed error:', (seedErr as Error).message?.slice(0, 300));
+  } finally {
+    await prisma.$disconnect();
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,7 +92,8 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Start server
+// Init DB then start server
+initDatabase().then(() => {
 app.listen(PORT, () => {
   console.log(`🚀 Zamtel Audit Tool backend running on port ${PORT}`);
   
@@ -68,6 +106,10 @@ app.listen(PORT, () => {
   setTimeout(() => {
     runRiskEngineForAll().catch(console.error);
   }, 30000);
+});
+}).catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
 
 export default app;
