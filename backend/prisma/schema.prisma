@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Device {
+  id                 String       @id @default(uuid())
+  imei               String       @unique
+  serialNo           String?
+  assetTag           String       @unique
+  model              String
+  msisdn             String?
+  internalSim        String?
+  batchId            String?
+  status             DeviceStatus @default(IN_STOCK)
+  currentCustodianId String?
+  province           String?
+  district           String?
+  zone               String?
+  route              String?
+  outlet             String?
+  riskScore          Int          @default(0)
+  riskFlags          String[]
+  lastActivityAt     DateTime?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  custodian          User?        @relation(fields: [currentCustodianId], references: [id])
+  transfers          TransferLog[]
+  activities         ActivityLog[]
+  auditCases         AuditCase[]
+}
+
+enum DeviceStatus {
+  IN_STOCK
+  IN_TRANSIT
+  ASSIGNED
+  ACTIVE
+  INACTIVE
+  LOST
+  STOLEN
+  DAMAGED
+  RETURNED
+  WRITTEN_OFF
+}
+
+model User {
+  id           String    @id @default(uuid())
+  staffId      String    @unique
+  name         String
+  role         UserRole
+  phone        String?
+  email        String?
+  province     String?
+  zone         String?
+  passwordHash String
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  devices      Device[]
+  transfersFrom TransferLog[] @relation("FromUser")
+  transfersTo   TransferLog[] @relation("ToUser")
+  auditCases    AuditCase[]   @relation("AuditorCases")
+}
+
+enum UserRole {
+  ADMIN
+  MARKET_MANAGEMENT
+  TRADE_AUDITOR
+  ASE
+  TSE
+  BDC
+  TDR
+  TEAM_LEAD
+  AGENT
+  RETAILER
+}
+
+model TransferLog {
+  id             String    @id @default(uuid())
+  deviceId       String
+  fromUserId     String?
+  toUserId       String
+  timestamp      DateTime  @default(now())
+  acknowledgedAt DateTime?
+  status         String    @default("PENDING")
+  notes          String?
+  device         Device    @relation(fields: [deviceId], references: [id])
+  fromUser       User?     @relation("FromUser", fields: [fromUserId], references: [id])
+  toUser         User      @relation("ToUser", fields: [toUserId], references: [id])
+}
+
+model ActivityLog {
+  id                 String    @id @default(uuid())
+  deviceId           String
+  date               DateTime
+  totalRegistrations Int       @default(0)
+  offHoursCount      Int       @default(0)
+  suspiciousFlags    String[]
+  device             Device    @relation(fields: [deviceId], references: [id])
+}
+
+model AuditCase {
+  id         String    @id @default(uuid())
+  deviceId   String
+  auditorId  String
+  status     String    @default("OPEN")
+  priority   String    @default("MEDIUM")
+  reason     String
+  fieldNotes String?
+  resolution String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+  device     Device    @relation(fields: [deviceId], references: [id])
+  auditor    User      @relation("AuditorCases", fields: [auditorId], references: [id])
+}
+
+model Batch {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+  totalDevices Int      @default(0)
+  importedBy   String?
+  createdAt    DateTime @default(now())
+}
