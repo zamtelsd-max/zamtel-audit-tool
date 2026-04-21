@@ -1,5 +1,8 @@
 FROM node:20-alpine
 
+# Install openssl for Prisma engine compatibility
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 # Install ALL deps (including devDeps like tsc) for build
@@ -12,6 +15,9 @@ RUN npm ci
 COPY . .
 
 RUN npm run build
+
+# Generate Prisma client with correct binary target
+RUN npx prisma generate
 
 # Prune devDependencies after build
 RUN npm prune --production
