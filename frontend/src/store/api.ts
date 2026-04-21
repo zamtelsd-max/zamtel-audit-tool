@@ -11,18 +11,39 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: API_URL,
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.token;
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
+    }
+    return headers;
+  },
+});
+
+// Auto-clear stale/invalid tokens on 401/403
+async function baseQueryWithReauth(
+  args: Parameters<typeof rawBaseQuery>[0],
+  api: Parameters<typeof rawBaseQuery>[1],
+  extraOptions: Parameters<typeof rawBaseQuery>[2]
+) {
+  const result = await rawBaseQuery(args, api, extraOptions);
+  if (result.error && (result.error.status === 401 || result.error.status === 403)) {
+    localStorage.removeItem('zamtel_token');
+    localStorage.removeItem('zamtel_user');
+    // Force reload to login screen
+    if (window.location.hash !== '#/login' && !window.location.hash.includes('login')) {
+      window.location.hash = '#/login';
+      window.location.reload();
+    }
+  }
+  return result;
+}
+
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: fetchBaseQuery({
-    baseUrl: API_URL,
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth.token;
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  }),
+  baseQuery: baseQueryWithReauth,
   tagTypes: ['Device', 'Case', 'User', 'Dashboard'],
   endpoints: (builder) => ({
     // Auth
