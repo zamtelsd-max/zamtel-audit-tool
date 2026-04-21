@@ -12,6 +12,7 @@ import AuditCases from './pages/AuditCases';
 import AlertCentre from './pages/AlertCentre';
 import Users from './pages/Users';
 import Reports from './pages/Reports';
+import KYCCheck from './pages/KYCCheck';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useSelector((state: RootState) => state.auth);
@@ -21,11 +22,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function DashboardRouter() {
   const { user } = useSelector((state: RootState) => state.auth);
   if (!user) return null;
-  const auditorRoles = ['TRADE_AUDITOR'];
-  if (auditorRoles.includes(user.role)) {
-    return <AuditorWorkbench />;
+  if (user.role === 'TRADE_AUDITOR' || user.role === 'TDR' || user.role === 'AGENT' || user.role === 'RETAILER') {
+    return <KYCCheck />;
   }
-  return <ExecutiveDashboard />;
+  if (user.role === 'ADMIN' || user.role === 'MARKET_MANAGEMENT' || user.role === 'TEAM_LEAD') {
+    return <ExecutiveDashboard />;
+  }
+  return <AuditorWorkbench />;
 }
 
 export default function App() {
@@ -53,6 +56,7 @@ export default function App() {
         <Route path="bulk-import" element={<BulkImport />} />
         <Route path="users" element={<Users />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="kyc" element={<KYCCheck />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

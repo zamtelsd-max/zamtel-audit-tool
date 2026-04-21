@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) {window.addEventListener('load', () => {navigator.serviceWorker.register('/zamtel-audit-tool/sw.js', { scope: '/zamtel-audit-tool/' })})}
