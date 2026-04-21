@@ -103,6 +103,21 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res: Response):
   }
 });
 
+// GET /devices/kyc?q=IMEI_OR_DEALER_CODE — must be BEFORE /:id
+router.get('/kyc', authenticateToken, async (req: AuthRequest, res2: Response): Promise<void> => {
+  try {
+    const { q } = req.query;
+    if (!q || typeof q !== 'string') { res2.status(400).json({ error: 'Query parameter q is required' }); return; }
+    const search = q.trim();
+    const device = await prisma.device.findFirst({
+      where: { OR: [{ imei: search }, { assetTag: search }, { msisdn: search }] },
+      select: { id: true, imei: true, assetTag: true, model: true, status: true, msisdn: true, province: true, zone: true, route: true, batchId: true, riskScore: true, lastActivityAt: true, riskFlags: true },
+    });
+    if (!device) { res2.status(404).json({ error: 'Device not found' }); return; }
+    res2.json(device);
+  } catch (error) { console.error('KYC lookup error:', error); res2.status(500).json({ error: 'Internal server error' }); }
+});
+
 // GET /devices/:id
 router.get('/:id', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -267,40 +282,6 @@ router.post('/:id/report-lost', authenticateToken, async (req: AuthRequest, res:
 });
 
 // GET /devices/:id/history
-// GET /devices/kyc?q=IMEI_OR_DEALER_CODE — Trade Auditor KYC lookup
-router.get('/kyc', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { q } = req.query;
-    if (!q || typeof q !== 'string') {
-      res.status(400).json({ error: 'Query parameter q is required' });
-      return;
-    }
-    const search = q.trim();
-    const device = await prisma.device.findFirst({
-      where: {
-        OR: [
-          { imei: search },
-          { assetTag: search },
-          { msisdn: search },
-        ],
-      },
-      select: {
-        id: true, imei: true, assetTag: true, model: true, status: true,
-        msisdn: true, province: true, zone: true, route: true, batchId: true,
-        riskScore: true, lastActivityAt: true, riskFlags: true,
-      },
-    });
-    if (!device) {
-      res.status(404).json({ error: 'Device not found' });
-      return;
-    }
-    res.json(device);
-  } catch (error) {
-    console.error('KYC lookup error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 router.get('/:id/history', authenticateToken, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
